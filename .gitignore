@@ -1,0 +1,6 @@
+.terraform/
+*.tfstate
+*.tfstate.backup
+.env
+gcp-key.json
+python-key.json

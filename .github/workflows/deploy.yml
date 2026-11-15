@@ -1,0 +1,46 @@
+name: Build and Deploy to Cloud Run
+
+on:
+  push:
+    branches:
+      - main # mainブランチにプッシュされたら自動実行
+
+env:
+  PROJECT_ID: vibrant-arcanum-514402-q3
+  REGION: us-central1
+  REPO_NAME: youtube-analytics-repo
+  SERVICE_NAME: youtube-fast-path-service
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v1
+        with:
+          credentials_json: ${{ secrets.GCP_CREDENTIALS }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v1
+
+      - name: Configure Docker to use Artifact Registry
+        run: |
+          gcloud auth configure-docker ${REGION}-docker.pkg.dev --quiet
+
+      - name: Build and Push Docker image (Multi-stage)
+        run: |
+          IMAGE_PATH="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO_NAME}/${SERVICE_NAME}:${GITHUB_SHA}"
+          docker build -t $IMAGE_PATH .
+          docker push $IMAGE_PATH
+
+      - name: Deploy to Cloud Run
+        uses: google-github-actions/deploy-cloudrun@v1
+        with:
+          service: ${{ env.SERVICE_NAME }}
+          region: ${{ env.REGION }}
+          image: ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO_NAME }}/${{ env.SERVICE_NAME }}:${{ github.sha }}
+          env_vars: |-
+            YOUTUBE_API_KEY=${{ secrets.YOUTUBE_API_KEY }}
