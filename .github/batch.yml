@@ -1,0 +1,33 @@
+name: Slow Path Daily Batch
+
+on:
+  schedule:
+    - cron: '0 0 * * *' # 毎日UTC 0:00 (JST 9:00)
+  workflow_dispatch: # 手動実行用のボタンも有効化
+
+jobs:
+  batch-job:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v1
+        with:
+          credentials_json: '${{ secrets.GCP_CREDENTIALS }}'
+
+      - name: Run Batch Script
+        env:
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+        run: |
+          python youtube_batch.py
