@@ -1,59 +1,41 @@
 import os
-from dotenv import load_dotenv
 from googleapiclient.discovery import build
 from google.cloud import firestore
+from dotenv import load_dotenv
+from flask import Flask, jsonify
 
-# 1. 認証情報の読み込み
 load_dotenv()
-API_KEY = os.getenv('YOUTUBE_API_KEY')
 
-# 2. もう一つの鍵ファイル（gcp-key.json）を環境変数に紐付ける
-os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "gcp-key.json"
+app = Flask(__name__)
 
-# 3. クライアントの初期化（プロジェクトIDは明示せず、鍵ファイル内の情報を自動取得させる）
-youtube = build('youtube', 'v3', developerKey=API_KEY)
-db = firestore.Client()
+@app.route("/", methods=["GET", "POST"])
+def fetch_youtube_data():
+    try:
+        API_KEY = os.getenv("YOUTUBE_API_KEY")
+        youtube = build("youtube", "v3", developerKey=API_KEY)
 
-# 先ほど取得成功したウマ娘の動画ID
-VIDEO_ID = 'JkicR3MezYk'
+        # サンプルデータ取得処理
+        request = youtube.search().list(
+            part="snippet",
+            q="ウマ娘",
+            maxResults=5
+        )
+        response = request.execute()
 
-def save_comments_to_firestore(video_id):
-    print(f"通信開始: 動画ID [{video_id}] のコメントを取得し、Firestoreへ保存します...\n")
-    
-    # APIからデータ取得
-    request = youtube.commentThreads().list(
-        part="snippet",
-        videoId=video_id,
-        maxResults=5,
-        order="relevance"
-    )
-    response = request.execute()
+        db = firestore.Client(database="(default)")
 
-    # Firestoreの保存先コレクション
-    collection_ref = db.collection('youtube_comments')
-
-    saved_count = 0
-    for item in response['items']:
-        comment_id = item['id']
-        snippet = item['snippet']['topLevelComment']['snippet']
+        for item in response.get("items", []):
+            video_id = item["id"].get("videoId")
+            if video_id:
+                title = item["snippet"]["title"]
+                doc_ref = db.collection("youtube_videos").document(video_id)
+                doc_ref.set({"title": title, "videoId": video_id})
         
-        # 保存するデータの構造
-        doc_data = {
-            'video_id': video_id,
-            'author': snippet['authorDisplayName'],
-            'comment': snippet['textDisplay'],
-            'likes': snippet['likeCount'],
-            'published_at': snippet['publishedAt']
-        }
-        
-        # Firestoreに書き込み
-        collection_ref.document(comment_id).set(doc_data)
-        saved_count += 1
-        
-        print(f"👤 {doc_data['author']} (👍 {doc_data['likes']} いいね) -> 保存完了")
-        
-    print("-" * 40)
-    print(f"✅ テスト完了！ {saved_count}件のコメントをFirestoreに保存しました。")
+        return jsonify({"status": "success", "message": "Data saved to Firestore"}), 200
+
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 if __name__ == "__main__":
-    save_comments_to_firestore(VIDEO_ID)
+    port = int(os.environ.get("PORT", 8080))
+    app.run(debug=True, host="0.0.0.0", port=port)
