@@ -30,7 +30,7 @@ jobs:
         env:
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
         run: |
-          python aaaaa.py
+          python youtube_batch.py
 
       - name: Slack Notification on Failure
         if: failure()
