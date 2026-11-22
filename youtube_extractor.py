@@ -1,3 +1,4 @@
+import json
 import os
 import re
 import time
@@ -405,6 +406,22 @@ def fetch_youtube_video_and_tree(url_or_id: str, top_n: int = 3, reply_top_n: in
         f"取得完了: {parent_post['text'][:38]} "
         f"(有効:{len(all_comments)}件 / スパム除外:{excluded_count}件 → 子:{len(top_children)}件 / 孫:{len(top_grandchildren)}件)"
     )
+
+    total_seen = len(all_comments) + excluded_count
+    discard_rate = round(excluded_count / total_seen, 4) if total_seen > 0 else 0.0
+    meta_keys = ["channel_name", "text", "impressions", "likes", "posted_at"]
+    meta_filled = sum(1 for k in meta_keys if parent_post.get(k) not in (None, ""))
+    metadata_coverage = round(meta_filled / len(meta_keys), 4)
+
+    print(json.dumps({
+        "event": "video_extracted",
+        "video_id": video_id,
+        "valid_comments": len(all_comments),
+        "excluded_comments": excluded_count,
+        "discard_rate": discard_rate,
+        "metadata_coverage": metadata_coverage,
+    }, ensure_ascii=False))
+
     return payload
 
 
@@ -437,11 +454,25 @@ if __name__ == "__main__":
         min_likes=MIN_LIKES,
     )
 
+    start_ts = time.perf_counter()
+    error_count = 0
+
     for idx, url in enumerate(target_urls, start=1):
         print(f"[{idx}/{len(target_urls)}] 処理中: {url}")
         try:
             data = fetch_youtube_video_and_tree(url, top_n=3, reply_top_n=3, max_pages=1)
             send_to_bigquery_via_cloud_run(data)
         except Exception as e:
+            error_count += 1
             print(f"  -> スキップ（エラー）: {e}")
         time.sleep(1)
+
+    elapsed_sec = round(time.perf_counter() - start_ts, 2)
+    error_rate = round(error_count / len(target_urls), 4) if target_urls else 0.0
+    print(json.dumps({
+        "event": "batch_summary",
+        "target_count": len(target_urls),
+        "error_count": error_count,
+        "error_rate": error_rate,
+        "latency_sec": elapsed_sec,
+    }, ensure_ascii=False))
