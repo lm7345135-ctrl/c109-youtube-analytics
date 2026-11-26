@@ -1,0 +1,12 @@
+c109_dwh:
+  target: dev
+  outputs:
+    dev:
+      type: bigquery
+      method: oauth
+      project: vibrant-arcanum-514402-q3
+      dataset: dwh_staging
+      location: US
+      threads: 2
+      timeout_seconds: 300
+      maximum_bytes_billed: 1000000000

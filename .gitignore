@@ -4,3 +4,7 @@
 .env
 gcp-key.json
 python-key.json
+dbt_dwh/target/
+dbt_dwh/logs/
+dbt_dwh/dbt_packages/
+logs/

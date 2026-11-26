@@ -1,0 +1,54 @@
+import subprocess
+import sys
+from pathlib import Path
+from dagster import Definitions, asset
+
+ROOT_DIR = Path(__file__).resolve().parent.parent
+DBT_DIR = ROOT_DIR / "dbt_dwh"
+
+
+def _run(cmd, cwd):
+    result = subprocess.run(cmd, cwd=cwd, check=True, text=True)
+    return result.returncode
+
+
+@asset(group_name="step2_dwh")
+def dbt_dwh_models():
+    """Staging -> Intermediate -> Mart の3層DWHを構築"""
+    _run([sys.executable, "-m", "dbt.cli.main", "run", "--profiles-dir", "."], DBT_DIR)
+
+
+@asset(deps=[dbt_dwh_models], group_name="step2_dwh")
+def dbt_quality_tests():
+    """主キー・NULL・親子参照整合性・値域の品質テスト（20件）を実行"""
+    _run([sys.executable, "-m", "dbt.cli.main", "test", "--profiles-dir", "."], DBT_DIR)
+
+
+@asset(deps=[dbt_quality_tests], group_name="step2_governance")
+def bq_snapshots_and_compaction():
+    """SCD Type2スナップショット・7日期限BQスナップショット・Tombstone物理削除"""
+    _run([sys.executable, "-m", "dbt.cli.main", "snapshot", "--profiles-dir", "."], DBT_DIR)
+    _run(
+        [sys.executable, "-m", "dbt.cli.main", "run-operation", "create_bq_table_snapshot", "--profiles-dir", "."],
+        DBT_DIR,
+    )
+    _run(
+        [sys.executable, "-m", "dbt.cli.main", "run-operation", "run_tombstone_compaction", "--profiles-dir", "."],
+        DBT_DIR,
+    )
+
+
+@asset(deps=[dbt_quality_tests], group_name="step2_feature_store")
+def firestore_online_feature_store():
+    """BigQuery Mart（オフラインFS）からFirestore（オンラインFS）へ同期"""
+    _run([sys.executable, "scripts/sync_feature_store.py"], ROOT_DIR)
+
+
+defs = Definitions(
+    assets=[
+        dbt_dwh_models,
+        dbt_quality_tests,
+        bq_snapshots_and_compaction,
+        firestore_online_feature_store,
+    ]
+)

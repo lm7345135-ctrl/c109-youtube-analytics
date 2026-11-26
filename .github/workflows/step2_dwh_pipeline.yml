@@ -1,0 +1,41 @@
+name: Step2 DWH & Feature Store Pipeline
+
+on:
+  schedule:
+    # 毎日 04:00 JST (19:00 UTC) に実行（Step1 収集バッチの後段）
+    - cron: '0 19 * * *'
+  workflow_dispatch:
+
+jobs:
+  run-step2-pipeline:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install dbt-bigquery google-cloud-bigquery google-cloud-firestore
+
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_CREDENTIALS }}
+
+      - name: Run dbt 3-layer DWH & Tests
+        working-directory: ./dbt_dwh
+        run: |
+          dbt run --profiles-dir .
+          dbt test --profiles-dir .
+          dbt snapshot --profiles-dir .
+          dbt run-operation create_bq_table_snapshot --profiles-dir .
+          dbt run-operation run_tombstone_compaction --profiles-dir .
+
+      - name: Sync Online Feature Store (BigQuery -> Firestore)
+        run: python scripts/sync_feature_store.py

@@ -1,0 +1,86 @@
+version: 2
+
+models:
+  - name: stg_parent_posts
+    description: "Staging層: 親投稿の生データ（日次パーティション・クラスタリング・Tombstone枠付き）"
+    columns:
+      - name: post_id
+        data_tests:
+          - not_null
+      - name: platform
+        data_tests:
+          - not_null
+
+  - name: stg_child_comments
+    description: "Staging層: コメント・返信の生データ（日次パーティション・クラスタリング・Tombstone枠付き）"
+    columns:
+      - name: comment_id
+        data_tests:
+          - not_null
+      - name: post_id
+        data_tests:
+          - not_null
+
+  - name: int_posts
+    description: "Intermediate層: 重複排除・クレンジング済みの親投稿マスタ"
+    columns:
+      - name: post_id
+        data_tests:
+          - not_null
+          - unique
+      - name: platform
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['YouTube', 'X', 'TikTok']
+
+  - name: int_comments_tree
+    description: "Intermediate層: DDD階層構造（親コメント/返信ツリー）に正規化したコメントテーブル"
+    columns:
+      - name: comment_id
+        data_tests:
+          - not_null
+          - unique
+      - name: post_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('int_posts')
+                field: post_id
+      - name: depth
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [1, 2]
+                quote: false
+
+  - name: mart_post_features
+    description: "Mart層（オフラインFeature Store）: 投稿単位のエンゲージメント特徴量・返信連鎖率"
+    columns:
+      - name: post_id
+        data_tests:
+          - not_null
+          - unique
+
+  - name: mart_channel_churn
+    description: "Mart層: SQLウィンドウ関数によるチャネル別投稿間隔・離脱（チャーン）分析"
+    columns:
+      - name: channel_name
+        data_tests:
+          - not_null
+      - name: retention_status
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['active', 'at_risk', 'churned']
+
+  - name: v_mart_comments_masked
+    description: "Mart層（ガバナンスビュー）: PII（@メンション・メール・URL）を動的マスキングしたコメント分析ビュー"
+    columns:
+      - name: comment_id
+        data_tests:
+          - not_null
+          - unique

@@ -1,0 +1,12 @@
+version: 2
+
+sources:
+  - name: raw_sns
+    database: vibrant-arcanum-514402-q3
+    schema: youtube_analytics_dataset
+    description: "Step 1 で収集された YouTube / X の生データ（非破壊参照）"
+    tables:
+      - name: parent_posts
+        description: "動画・親投稿の生データ"
+      - name: child_comments
+        description: "親コメント・返信ツリーの生データ"
