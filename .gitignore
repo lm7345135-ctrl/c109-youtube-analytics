@@ -10,4 +10,4 @@ dbt_dwh/dbt_packages/
 logs/
 step2-key.json
 __pycache__/
-*.pyc
+*.pyc.env 

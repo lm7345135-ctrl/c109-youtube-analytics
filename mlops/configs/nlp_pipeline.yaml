@@ -1,0 +1,22 @@
+seed: 42
+
+paths:
+  input_parquet: "data/datasets/masked_comments_v1.parquet"
+  custom_dict_csv: "mlops/dict/custom_dict.csv"
+  output_dir: "data/outputs"
+
+embedding:
+  model_name: "intfloat/multilingual-e5-small"
+  batch_size: 32
+  prefix: "passage: "
+
+optuna:
+  n_trials: 15
+  umap_n_neighbors_min: 5
+  umap_n_neighbors_max: 25
+  umap_n_components: 5
+  hdbscan_min_cluster_size_min: 5
+  hdbscan_min_cluster_size_max: 20
+
+ctfidf:
+  top_n_words: 8
