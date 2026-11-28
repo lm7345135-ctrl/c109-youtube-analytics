@@ -27,11 +27,13 @@ jobs:
           python-version: "3.11"
           cache: "pip"
 
-      - name: Install CPU PyTorch and MLOps dependencies
+      - name: Install CPU PyTorch, DVC, and MLOps dependencies
         run: |
           python -m pip install --upgrade pip
           pip install --index-url https://download.pytorch.org/whl/cpu torch
           pip install \
+            dvc \
+            dvc-gs \
             sentence-transformers \
             umap-learn \
             hdbscan \
@@ -46,6 +48,15 @@ jobs:
             pandas \
             mlflow-skinny \
             huggingface_hub
+
+      - name: Authenticate to GCP (Step2 Least-Privilege SA)
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_STEP2_SA_KEY }}
+
+      - name: Pull dataset from GCS via DVC
+        run: |
+          dvc pull data/datasets/masked_comments_v1.parquet.dvc
 
       - name: Run Phase 3-1a (NLP Clustering & Optuna)
         run: |
