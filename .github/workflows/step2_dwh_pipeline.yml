@@ -21,21 +21,15 @@ jobs:
       - name: Install dependencies
         run: |
           pip install --upgrade pip
-          pip install dbt-bigquery google-cloud-bigquery google-cloud-firestore
+          pip install dbt-bigquery google-cloud-bigquery google-cloud-firestore dagster dvc dvc-gs pandas pyarrow
 
-      - name: Authenticate to GCP
+      - name: Authenticate to GCP (Step2 Least-Privilege SA)
         uses: google-github-actions/auth@v2
         with:
-          credentials_json: ${{ secrets.GCP_CREDENTIALS }}
+          credentials_json: ${{ secrets.GCP_STEP2_SA_KEY }}
 
-      - name: Run dbt 3-layer DWH & Tests
-        working-directory: ./dbt_dwh
+      - name: Materialize all Step2 Assets via Dagster
         run: |
-          dbt run --profiles-dir .
-          dbt test --profiles-dir .
-          dbt snapshot --profiles-dir .
-          dbt run-operation create_bq_table_snapshot --profiles-dir .
-          dbt run-operation run_tombstone_compaction --profiles-dir .
+         python orchestration/dagster_assets.py
 
-      - name: Sync Online Feature Store (BigQuery -> Firestore)
-        run: python scripts/sync_feature_store.py
+      

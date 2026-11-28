@@ -5,7 +5,8 @@
         "type": "Delete"
       },
       "condition": {
-        "age": 3
+        "age": 3,
+        "matchesPrefix": ["tmp/"]
       }
     }
   ]

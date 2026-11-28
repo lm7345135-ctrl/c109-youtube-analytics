@@ -20,7 +20,7 @@ def dbt_dwh_models():
 
 @asset(deps=[dbt_dwh_models], group_name="step2_dwh")
 def dbt_quality_tests():
-    """主キー・NULL・親子参照整合性・値域の品質テスト（20件）を実行"""
+    """主キー・NULL・参照整合性・値域の品質テストを実行"""
     _run([sys.executable, "-m", "dbt.cli.main", "test", "--profiles-dir", "."], DBT_DIR)
 
 
@@ -40,8 +40,16 @@ def bq_snapshots_and_compaction():
 
 @asset(deps=[dbt_quality_tests], group_name="step2_feature_store")
 def firestore_online_feature_store():
-    """BigQuery Mart（オフラインFS）からFirestore（オンラインFS）へ同期"""
+    """BigQuery Mart からオンラインFeature Store (Firestore) へ同期"""
     _run([sys.executable, "scripts/sync_feature_store.py"], ROOT_DIR)
+
+
+@asset(deps=[dbt_quality_tests], group_name="step2_mlops")
+def dvc_training_dataset():
+    """PIIマスキング済み学習用Parquetを出力し、DVCでGCSへ版管理プッシュ"""
+    _run([sys.executable, "scripts/export_training_dataset.py"], ROOT_DIR)
+    _run([sys.executable, "-m", "dvc", "add", "data/datasets/masked_comments_v1.parquet"], ROOT_DIR)
+    _run([sys.executable, "-m", "dvc", "push"], ROOT_DIR)
 
 
 defs = Definitions(
@@ -50,5 +58,21 @@ defs = Definitions(
         dbt_quality_tests,
         bq_snapshots_and_compaction,
         firestore_online_feature_store,
+        dvc_training_dataset,
     ]
 )
+
+if __name__ == "__main__":
+    from dagster import materialize
+
+    result = materialize(
+        [
+            dbt_dwh_models,
+            dbt_quality_tests,
+            bq_snapshots_and_compaction,
+            firestore_online_feature_store,
+            dvc_training_dataset,
+        ]
+    )
+    if not result.success:
+        sys.exit(1)
